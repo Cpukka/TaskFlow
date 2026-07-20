@@ -4,8 +4,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -21,8 +21,8 @@ model User {
   projectMembers  ProjectMember[]
   sentInvitations Invitation[]  @relation("sentInvitations")
   files           File[]
-  comments        Comment[]     // Added this
-  activities      Activity[]    // Added this
+  comments        Comment[]
+  activities      Activity[]
 }
 
 model Project {
@@ -39,7 +39,7 @@ model Project {
   tasks       Task[]
   members     ProjectMember[]
   invitations Invitation[]
-  activities  Activity[]        // Added this
+  activities  Activity[]
 }
 
 model Task {
@@ -59,8 +59,8 @@ model Task {
   assignee   User?   @relation(fields: [assigneeId], references: [id])
   
   files     File[]
-  comments  Comment[]    // Added this
-  activities Activity[]  // Added this
+  comments  Comment[]
+  activities Activity[]
 }
 
 model ProjectMember {
