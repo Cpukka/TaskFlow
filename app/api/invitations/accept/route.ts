@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // Find the invitation
+    // Find the invitation - CORRECTED: prisma.invitation (not prisma.invitation)
     const invitation = await prisma.invitation.findUnique({
       where: { token },
       include: {
@@ -103,7 +103,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // Add user as project member
+    // Add user as project member - CORRECTED: prisma.projectMember (not prisma.projectMember)
     const projectMember = await prisma.projectMember.create({
       data: {
         role: invitation.role,

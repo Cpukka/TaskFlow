@@ -1,3 +1,4 @@
+// app/dashboard/projects/[id]/board/page.tsx
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
@@ -8,7 +9,7 @@ import Link from 'next/link'
 
 interface PageProps {
   params: {
-    id: string  // This should be PROJECT ID, not task ID
+    id: string
   }
 }
 
@@ -19,22 +20,16 @@ export default async function TaskBoardPage({ params }: PageProps) {
     redirect('/login')
   }
 
-  // Fetch the PROJECT (not task) and its tasks
+  // Fetch the PROJECT and its tasks with proper includes
   const project = await prisma.project.findUnique({
     where: {
       id: params.id,
-      OR: [
-        // Allow project owner OR members to access
-        { owner: { email: session.user?.email } },
-        { members: { some: { user: { email: session.user?.email } } } }
-      ]
     },
     include: {
       tasks: {
         orderBy: {
           createdAt: 'desc'
         },
-        // Include files if needed
         include: {
           files: {
             include: {
@@ -48,13 +43,32 @@ export default async function TaskBoardPage({ params }: PageProps) {
             orderBy: {
               createdAt: 'desc'
             }
+          },
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
           }
         }
       },
       owner: {
         select: {
+          id: true,
           name: true,
           email: true
+        }
+      },
+      members: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          }
         }
       }
     }
@@ -73,26 +87,26 @@ export default async function TaskBoardPage({ params }: PageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <div className="bg-white border-b shadow-sm">
+      <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="container mx-auto px-6 py-4">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <Link 
                 href={`/dashboard/projects/${project.id}`}
-                className="inline-flex items-center text-blue-600 hover:text-blue-800 mb-2 text-sm"
+                className="inline-flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 mb-2 text-sm"
               >
                 ← Back to Project
               </Link>
               <div className="flex items-center space-x-3">
                 <div 
                   className="w-4 h-4 rounded-full"
-                  style={{ backgroundColor: project.color }}
+                  style={{ backgroundColor: project.color || '#3b82f6' }}
                 ></div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-800">{project.name} - Task Board</h1>
-                  <p className="text-gray-600 text-sm">
+                  <h1 className="text-2xl font-bold text-gray-800 dark:text-white">{project.name} - Task Board</h1>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
                     {project.tasks.length} tasks • {isOwner ? 'Owner' : 'Member'}
                   </p>
                 </div>
@@ -101,13 +115,13 @@ export default async function TaskBoardPage({ params }: PageProps) {
             <div className="flex space-x-3">
               <Link
                 href={`/dashboard/projects/${project.id}/tasks/new`}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
               >
                 + New Task
               </Link>
               <Link
                 href={`/dashboard/projects/${project.id}`}
-                className="border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium transition-colors"
+                className="border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg font-medium transition-colors"
               >
                 List View
               </Link>

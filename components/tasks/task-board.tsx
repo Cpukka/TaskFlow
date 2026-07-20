@@ -1,21 +1,11 @@
+// components/tasks/task-board.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import TaskCard from './task-card'
 import { useRealTime } from '@/hooks/useRealTime'
-
-interface Task {
-  id: string
-  title: string
-  description: string | null
-  status: 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE'
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
-  dueDate: Date | null
-  createdAt: Date
-  updatedAt: Date
-  projectId: string
-}
+import type { Task, TaskStatus, Priority } from '@prisma/client'
 
 interface TaskBoardProps {
   tasks: Task[]
@@ -23,7 +13,7 @@ interface TaskBoardProps {
 }
 
 interface Column {
-  id: 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE'
+  id: TaskStatus
   title: string
   color: string
   tasks: Task[]
@@ -65,25 +55,25 @@ export default function TaskBoard({ tasks: initialTasks, projectId }: TaskBoardP
       {
         id: 'TODO',
         title: 'To Do',
-        color: 'bg-blue-50 border-blue-200',
+        color: 'bg-blue-50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-800',
         tasks: tasks.filter(task => task.status === 'TODO')
       },
       {
         id: 'IN_PROGRESS',
         title: 'In Progress',
-        color: 'bg-yellow-50 border-yellow-200',
+        color: 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/20 dark:border-yellow-800',
         tasks: tasks.filter(task => task.status === 'IN_PROGRESS')
       },
       {
         id: 'REVIEW',
         title: 'Review',
-        color: 'bg-purple-50 border-purple-200',
+        color: 'bg-purple-50 border-purple-200 dark:bg-purple-950/20 dark:border-purple-800',
         tasks: tasks.filter(task => task.status === 'REVIEW')
       },
       {
         id: 'DONE',
         title: 'Done',
-        color: 'bg-green-50 border-green-200',
+        color: 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800',
         tasks: tasks.filter(task => task.status === 'DONE')
       }
     ]
@@ -94,38 +84,17 @@ export default function TaskBoard({ tasks: initialTasks, projectId }: TaskBoardP
     setDraggedTask(task)
   }
 
-  const handleDragOver = (e: React.DragEvent, columnId: Column['id']) => {
+  const handleDragOver = (e: React.DragEvent, columnId: TaskStatus) => {
     e.preventDefault()
   }
 
-  const handleDrop = async (e: React.DragEvent, columnId: Column['id']) => {
+  const handleDrop = async (e: React.DragEvent, columnId: TaskStatus) => {
     e.preventDefault()
     
     if (!draggedTask || draggedTask.status === columnId) {
       setDraggedTask(null)
       return
     }
-
-    // Add these handlers to your TaskBoard component:
-
-const handleTaskUpdated = (updatedTask: Task) => {
-  setTasks(prev => prev.map(task => 
-    task.id === updatedTask.id ? updatedTask : task
-  ))
-}
-
-const handleTaskDeleted = (taskId: string) => {
-  setTasks(prev => prev.filter(task => task.id !== taskId))
-}
-
-// Update the TaskCard in the render to pass the handlers:
-<TaskCard
-  key={task.id}
-  task={task}
-  onDragStart={handleDragStart}
-  onTaskUpdated={handleTaskUpdated}
-  onTaskDeleted={handleTaskDeleted}
-/>
 
     // Optimistic update
     const previousTasks = [...tasks]
@@ -160,6 +129,18 @@ const handleTaskDeleted = (taskId: string) => {
     setDraggedTask(null)
   }
 
+  // Handle task update from TaskCard
+  const handleTaskUpdated = (updatedTask: Task) => {
+    setTasks(prev => prev.map(task => 
+      task.id === updatedTask.id ? updatedTask : task
+    ))
+  }
+
+  // Handle task deletion from TaskCard
+  const handleTaskDeleted = (taskId: string) => {
+    setTasks(prev => prev.filter(task => task.id !== taskId))
+  }
+
   const getColumnStats = (column: Column) => {
     const total = column.tasks.length
     const urgent = column.tasks.filter(task => task.priority === 'URGENT').length
@@ -172,9 +153,9 @@ const handleTaskDeleted = (taskId: string) => {
     <div className="p-6">
       {/* Board Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Task Board</h1>
-        <p className="text-gray-600">Drag and drop tasks to update their status</p>
-        <div className="flex items-center space-x-2 mt-2 text-sm text-green-600">
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Task Board</h1>
+        <p className="text-gray-600 dark:text-gray-300">Drag and drop tasks to update their status</p>
+        <div className="flex items-center space-x-2 mt-2 text-sm text-green-600 dark:text-green-400">
           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
           <span>Real-time updates active</span>
         </div>
@@ -188,26 +169,26 @@ const handleTaskDeleted = (taskId: string) => {
           return (
             <div
               key={column.id}
-              className={`rounded-lg border-2 ${column.color} min-h-[600px]`}
+              className={`rounded-lg border-2 ${column.color} min-h-[600px] transition-colors`}
               onDragOver={(e) => handleDragOver(e, column.id)}
               onDrop={(e) => handleDrop(e, column.id)}
             >
               {/* Column Header */}
-              <div className="p-4 border-b">
+              <div className="p-4 border-b dark:border-gray-700">
                 <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-semibold text-gray-800">{column.title}</h3>
-                  <span className="bg-white px-2 py-1 rounded-full text-sm font-medium">
+                  <h3 className="font-semibold text-gray-800 dark:text-white">{column.title}</h3>
+                  <span className="bg-white dark:bg-gray-800 px-2 py-1 rounded-full text-sm font-medium dark:text-white">
                     {stats.total}
                   </span>
                 </div>
                 <div className="flex space-x-2 text-xs">
                   {stats.urgent > 0 && (
-                    <span className="bg-red-100 text-red-800 px-2 py-1 rounded">
+                    <span className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 px-2 py-1 rounded">
                       {stats.urgent} urgent
                     </span>
                   )}
                   {stats.high > 0 && (
-                    <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded">
+                    <span className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400 px-2 py-1 rounded">
                       {stats.high} high
                     </span>
                   )}
@@ -221,11 +202,13 @@ const handleTaskDeleted = (taskId: string) => {
                     key={task.id}
                     task={task}
                     onDragStart={handleDragStart}
+                    onTaskUpdated={handleTaskUpdated}
+                    onTaskDeleted={handleTaskDeleted}
                   />
                 ))}
                 
                 {column.tasks.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                     <p>No tasks</p>
                     <p className="text-sm mt-1">Drag tasks here</p>
                   </div>
@@ -237,7 +220,7 @@ const handleTaskDeleted = (taskId: string) => {
       </div>
 
       {/* Drag Hint */}
-      <div className="mt-6 text-center text-gray-500 text-sm">
+      <div className="mt-6 text-center text-gray-500 dark:text-gray-400 text-sm">
         💡 Drag and drop tasks between columns to update their status
       </div>
     </div>

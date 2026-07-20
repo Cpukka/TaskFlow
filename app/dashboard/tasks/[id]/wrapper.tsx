@@ -1,3 +1,4 @@
+// app/dashboard/tasks/[id]/wrapper.tsx
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
@@ -36,10 +37,31 @@ export default async function TaskDetailPageWrapper({ params }: PageProps) {
           color: true
         }
       },
+      assignee: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      },
       files: {
         include: {
           uploadedBy: {
             select: {
+              name: true,
+              email: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      },
+      comments: {
+        include: {
+          author: {
+            select: {
+              id: true,
               name: true,
               email: true
             }
@@ -65,8 +87,14 @@ export default async function TaskDetailPageWrapper({ params }: PageProps) {
     files: task.files.map(file => ({
       ...file,
       createdAt: file.createdAt.toISOString()
+    })),
+    comments: task.comments.map(comment => ({
+      ...comment,
+      createdAt: comment.createdAt.toISOString()
     }))
   }
 
-  return <TaskDetailPage initialTask={serializedTask} initialFiles={serializedTask.files} />
+  // Pass the serialized task as props to the page component
+  // The page component will use this as initial data
+  return <TaskDetailPage task={serializedTask} />
 }

@@ -1,184 +1,94 @@
+// components/tasks/task-card.tsx
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
-import { MoreHorizontal, Edit, Trash2 } from 'lucide-react'
-import EditTaskForm from './edit-task-form'
-
-interface Task {
-  id: string
-  title: string
-  description: string | null
-  status: 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE'
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
-  dueDate: Date | null
-  createdAt: Date
-  projectId: string
-}
+import { FiMoreVertical, FiEdit2, FiTrash2, FiCheck, FiClock, FiAlertCircle, FiFlag } from 'react-icons/fi'
+import { format } from 'date-fns'
+import type { Task } from '@prisma/client'
 
 interface TaskCardProps {
   task: Task
   onDragStart: (task: Task) => void
-  onTaskUpdated?: (updatedTask: Task) => void
+  onTaskUpdated?: (task: Task) => void
   onTaskDeleted?: (taskId: string) => void
 }
 
 export default function TaskCard({ task, onDragStart, onTaskUpdated, onTaskDeleted }: TaskCardProps) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'LOW': return 'bg-gray-200 text-gray-800'
-      case 'MEDIUM': return 'bg-orange-200 text-orange-800'
-      case 'HIGH': return 'bg-red-200 text-red-800'
-      case 'URGENT': return 'bg-pink-200 text-pink-800'
-      default: return 'bg-gray-200 text-gray-800'
-    }
+  const priorityColors = {
+    LOW: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    MEDIUM: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+    HIGH: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+    URGENT: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
   }
 
-  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date()
-
-  const handleDragStart = (e: React.DragEvent) => {
-    onDragStart(task)
-    e.dataTransfer.setData('text/plain', task.id)
-  }
-
-  const handleEdit = () => {
-    setIsMenuOpen(false)
-    setIsEditModalOpen(true)
+  const statusColors = {
+    TODO: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+    IN_PROGRESS: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+    REVIEW: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+    DONE: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
   }
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this task?')) {
-      return
-    }
+    if (!confirm('Are you sure you want to delete this task?')) return
 
-    setIsDeleting(true)
     try {
       const response = await fetch(`/api/tasks/${task.id}`, {
         method: 'DELETE',
       })
 
       if (response.ok) {
-        onTaskDeleted?.(task.id)
-      } else {
-        const error = await response.json()
-        alert(error.error || 'Failed to delete task')
+        if (onTaskDeleted) {
+          onTaskDeleted(task.id)
+        }
       }
     } catch (error) {
-      console.error('Delete error:', error)
-      alert('An error occurred while deleting the task')
-    } finally {
-      setIsDeleting(false)
-      setIsMenuOpen(false)
+      console.error('Error deleting task:', error)
     }
   }
 
-  const handleTaskUpdated = (updatedTask: Task) => {
-    onTaskUpdated?.(updatedTask)
-  }
-
   return (
-    <>
-      <div
-        draggable
-        onDragStart={handleDragStart}
-        className="bg-white rounded-lg shadow-sm border p-4 cursor-move hover:shadow-md transition-shadow relative group"
-      >
-        {/* Action Menu */}
-        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="relative">
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="p-1 hover:bg-gray-100 rounded transition-colors"
-              disabled={isDeleting}
-            >
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
-
-            {isMenuOpen && (
-              <>
-                <div 
-                  className="fixed inset-0 z-10"
-                  onClick={() => setIsMenuOpen(false)}
-                />
-                
-                <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg shadow-lg border z-20">
-                  <button
-                    onClick={handleEdit}
-                    className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  >
-                    <Edit className="w-3 h-3 mr-2" />
-                    Edit
-                  </button>
-                  
-                  <button
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                    className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
-                  >
-                    <Trash2 className="w-3 h-3 mr-2" />
-                    {isDeleting ? 'Deleting...' : 'Delete'}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Priority Indicator */}
-        <div className="flex justify-between items-start mb-2">
-          <span className={`text-xs px-2 py-1 rounded-full font-medium ${getPriorityColor(task.priority)}`}>
-            {task.priority}
-          </span>
-          {isOverdue && (
-            <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">
-              Overdue
-            </span>
-          )}
-        </div>
-
-        {/* Task Title */}
-        <Link 
-          href={`/dashboard/tasks/${task.id}`}
-          className="block font-semibold text-gray-800 mb-2 hover:text-blue-600 transition-colors"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {task.title}
-        </Link>
-
-        {/* Task Description Preview */}
-        {task.description && (
-          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-            {task.description}
-          </p>
-        )}
-
-        {/* Due Date */}
-        {task.dueDate && (
-          <div className="flex items-center text-xs text-gray-500 mb-3">
-            <span>📅 {new Date(task.dueDate).toLocaleDateString()}</span>
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="flex justify-between items-center text-xs text-gray-500">
-          <span>
-            Created: {new Date(task.createdAt).toLocaleDateString()}
-          </span>
-          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-        </div>
+    <div
+      draggable
+      onDragStart={() => onDragStart(task)}
+      className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 cursor-move hover:shadow-md transition-all group relative"
+    >
+      {/* Priority Badge */}
+      <div className="absolute top-3 right-3">
+        <span className={`px-2 py-0.5 text-xs rounded-full ${priorityColors[task.priority]}`}>
+          {task.priority}
+        </span>
       </div>
 
-      {/* Edit Modal */}
-      <EditTaskForm
-        task={task}
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onTaskUpdated={handleTaskUpdated}
-      />
-    </>
+      {/* Title */}
+      <h4 className="font-medium text-gray-900 dark:text-white text-sm pr-16 mb-2">
+        {task.title}
+      </h4>
+
+      {/* Description */}
+      {task.description && (
+        <p className="text-gray-500 dark:text-gray-400 text-xs mb-3 line-clamp-2">
+          {task.description}
+        </p>
+      )}
+
+      {/* Footer */}
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+        {/* Due Date */}
+        {task.dueDate && (
+          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+            <FiClock className="w-3 h-3" />
+            {format(new Date(task.dueDate), 'MMM d')}
+          </div>
+        )}
+
+        {/* Status Badge */}
+        <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[task.status]}`}>
+          {task.status.replace('_', ' ')}
+        </span>
+      </div>
+    </div>
   )
 }

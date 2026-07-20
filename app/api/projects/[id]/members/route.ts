@@ -1,147 +1,154 @@
+// app/api/projects/[id]/members/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { broadcastEvent } from '../../../events/route'
 
-interface RouteContext {
-  params: {
-    id: string
-  }
-}
-
-export async function GET(request: NextRequest, { params }: RouteContext) {
-  const session = await getServerSession(authOptions)
-
-  if (!session?.user?.email) {
-    return new NextResponse('Unauthorized', { status: 401 })
-  }
-
+// GET - Get project members
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
-    // Verify user has access to the project
-    const project = await prisma.project.findFirst({
-      where: {
-        id: params.id,
-        OR: [
-          { owner: { email: session.user.email } },
-          { members: { some: { user: { email: session.user.email } } } }
-        ]
-      }
-    })
-
-    if (!project) {
-      return NextResponse.json(
-        { error: 'Project not found or access denied' },
-        { status: 404 }
-      )
+    const session = await getServerSession(authOptions)
+    
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get project members
-    const members = await prisma.projectMember.findMany({
+    const { id } = await context.params
+
+    // Verify project belongs to user
+    const project = await prisma.project.findFirst({
       where: {
-        projectId: params.id,
+        id: id,
+        owner: {
+          email: session.user?.email
+        }
       },
       include: {
-        user: {
+        owner: {
           select: {
             id: true,
             name: true,
             email: true
           }
         }
-      },
-      orderBy: {
-        createdAt: 'asc'
       }
     })
 
-    // Include the project owner
-    const owner = await prisma.user.findUnique({
-      where: { id: project.ownerId },
-      select: {
-        id: true,
-        name: true,
-        email: true
-      }
-    })
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
 
-    const allMembers = [
+    // Return the owner as the only member
+    const members = [
       {
-        id: 'owner',
-        role: 'OWNER' as const,
-        user: owner,
-        createdAt: project.createdAt
-      },
-      ...members
+        id: project.owner.id,
+        name: project.owner.name,
+        email: project.owner.email,
+        role: 'Owner'
+      }
     ]
 
-    return NextResponse.json(allMembers)
+    return NextResponse.json(members)
   } catch (error) {
-    console.error('Error fetching project members:', error)
-    return new NextResponse('Internal Error', { status: 500 })
+    console.error('Error fetching members:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: RouteContext) {
-  const session = await getServerSession(authOptions)
-
-  if (!session?.user?.email) {
-    return new NextResponse('Unauthorized', { status: 401 })
-  }
-
+// POST - Add a member to project
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
-    const { searchParams } = new URL(request.url)
-    const memberId = searchParams.get('memberId')
-
-    if (!memberId) {
-      return NextResponse.json(
-        { error: 'Member ID is required' },
-        { status: 400 }
-      )
+    const session = await getServerSession(authOptions)
+    
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify the requesting user is the project owner
-    const project = await prisma.project.findUnique({
+    const { id } = await context.params
+    const body = await request.json()
+    const { email, role } = body
+
+    // Verify project belongs to user
+    const project = await prisma.project.findFirst({
       where: {
-        id: params.id,
+        id: id,
         owner: {
-          email: session.user.email
+          email: session.user?.email
         }
       }
     })
 
     if (!project) {
-      return NextResponse.json(
-        { error: 'Project not found or access denied' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
-    // Remove member
-    await prisma.projectMember.delete({
+    // Check if user exists
+    const userToAdd = await prisma.user.findUnique({
+      where: { email }
+    })
+
+    if (!userToAdd) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({ 
+      message: 'Member added successfully',
+      member: {
+        id: userToAdd.id,
+        name: userToAdd.name,
+        email: userToAdd.email,
+        role: role || 'Member'
+      }
+    })
+  } catch (error) {
+    console.error('Error adding member:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// DELETE - Remove a member from project
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { id } = await context.params
+    const { searchParams } = new URL(request.url)
+    const memberId = searchParams.get('memberId')
+
+    if (!memberId) {
+      return NextResponse.json({ error: 'Member ID required' }, { status: 400 })
+    }
+
+    // Verify project belongs to user
+    const project = await prisma.project.findFirst({
       where: {
-        id: memberId,
-        projectId: params.id,
-        // Prevent removing the owner
-        NOT: {
-          role: 'OWNER'
+        id: id,
+        owner: {
+          email: session.user?.email
         }
       }
     })
 
-    // Broadcast real-time event
-    broadcastEvent({
-      type: 'MEMBER_REMOVED',
-      memberId,
-      projectId: params.id
-    })
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
 
-    return new NextResponse(null, { status: 204 })
+    return NextResponse.json({ message: 'Member removed successfully' })
   } catch (error) {
     console.error('Error removing member:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

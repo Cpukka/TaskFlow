@@ -1,3 +1,4 @@
+// hooks/useRealTime.ts
 import { useEffect, useRef, useCallback } from 'react'
 
 interface RealTimeEvent {
@@ -15,7 +16,7 @@ interface UseRealTimeProps {
 
 export function useRealTime({ onEvent, projectId }: UseRealTimeProps) {
   const eventSourceRef = useRef<EventSource | null>(null)
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
+  const reconnectTimeoutRef = useRef<number | null>(null)
 
   const connect = useCallback(() => {
     if (eventSourceRef.current) {
@@ -30,6 +31,7 @@ export function useRealTime({ onEvent, projectId }: UseRealTimeProps) {
       // Clear any reconnect timeout
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = null
       }
     }
 
@@ -55,7 +57,7 @@ export function useRealTime({ onEvent, projectId }: UseRealTimeProps) {
       eventSource.close()
       
       // Attempt to reconnect after 3 seconds
-      reconnectTimeoutRef.current = setTimeout(() => {
+      reconnectTimeoutRef.current = window.setTimeout(() => {
         console.log('Attempting to reconnect...')
         connect()
       }, 3000)
@@ -70,6 +72,7 @@ export function useRealTime({ onEvent, projectId }: UseRealTimeProps) {
     return () => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = null
       }
       if (eventSource) {
         eventSource.close()
@@ -81,9 +84,11 @@ export function useRealTime({ onEvent, projectId }: UseRealTimeProps) {
     disconnect: () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close()
+        eventSourceRef.current = null
       }
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = null
       }
     }
   }
